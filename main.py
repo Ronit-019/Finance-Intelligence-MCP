@@ -9,10 +9,6 @@ from datetime import date as pydate
 # Load configuration from .env file
 load_dotenv()
 
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    raise ValueError("DATABASE_URL environment variable must be set to run this server.")
-
 CATEGORIES_PATH = os.path.join(os.path.dirname(__file__), "categories.json")
 
 mcp = FastMCP("Expense Tracker")
@@ -22,7 +18,10 @@ async def get_pool():
     """Lazy initialize the database connection pool and create tables if they do not exist"""
     global pool
     if pool is None:
-        pool = await asyncpg.create_pool(dsn=DATABASE_URL, statement_cache_size=0)
+        db_url = os.environ.get("DATABASE_URL")
+        if not db_url:
+            raise ValueError("DATABASE_URL environment variable must be set to run this server.")
+        pool = await asyncpg.create_pool(dsn=db_url, statement_cache_size=0)
         async with pool.acquire() as conn:
             # Create users table with token verification
             await conn.execute("""
