@@ -138,6 +138,87 @@ async def summarize(start_date: str, end_date: str, category: str = None):
         rows = await conn.fetch(query, *params)
         return [dict(row) for row in rows]
 
+@mcp.tool
+async def delete_expenses(
+    expense_ids: list[int] = None,
+    start_date: str = None,
+    end_date: str = None,
+    category: str = None,
+    subcategory: str = None
+) -> dict:
+    """
+    Delete expenses matching the provided filters.
+    At least one filter must be provided to prevent accidental deletion of all records.
+    All provided filters are combined using AND.
+    
+    :param expense_ids: List of specific expense IDs to delete.
+    :param start_date: Start date in YYYY-MM-DD format.
+    :param end_date: End date in YYYY-MM-DD format (requires start_date).
+    :param category: Category name.
+    :param subcategory: Subcategory name.
+    :return: A status dictionary indicating status and number of deleted records.
+    """
+    if not any([expense_ids, start_date, end_date, category, subcategory]):
+        return {
+            "status": "error",
+            "message": (
+                "At least one filter (expense_ids, start_date, end_date, "
+                "category, or subcategory) must be specified to delete expenses."
+            )
+        }
+
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        user_id = await get_authenticated_user_id(conn)
+        
+        # Build query dynamically
+        query = "DELETE FROM expenses WHERE user_id = $1"
+        params = [user_id]
+        param_idx = 2
+        
+        if expense_ids:
+            query += f" AND id = ANY(${param_idx}::integer[])"
+            params.append(expense_ids)
+            param_idx += 1
+            
+        if start_date:
+            parsed_start = pydate.fromisoformat(start_date)
+            if end_date:
+                parsed_end = pydate.fromisoformat(end_date)
+                query += f" AND date BETWEEN ${param_idx} AND ${param_idx+1}"
+                params.extend([parsed_start, parsed_end])
+                param_idx += 2
+            else:
+                query += f" AND date >= ${param_idx}"
+                params.append(parsed_start)
+                param_idx += 1
+        elif end_date:
+            parsed_end = pydate.fromisoformat(end_date)
+            query += f" AND date <= ${param_idx}"
+            params.append(parsed_end)
+            param_idx += 1
+            
+        if category:
+            query += f" AND category = ${param_idx}"
+            params.append(category)
+            param_idx += 1
+            
+        if subcategory:
+            query += f" AND subcategory = ${param_idx}"
+            params.append(subcategory)
+            param_idx += 1
+            
+        query += " RETURNING id"
+        
+        rows = await conn.fetch(query, *params)
+        deleted_ids = [row["id"] for row in rows]
+        
+        return {
+            "status": "ok",
+            "deleted_count": len(deleted_ids),
+            "deleted_ids": deleted_ids
+        }
+
 @mcp.resource("expense://categories", mime_type="application/json")
 def resources():
     """Read Fresh each time so you can edit the file without restarting"""
