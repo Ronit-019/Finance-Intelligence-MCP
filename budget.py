@@ -437,4 +437,122 @@ async def delete_budgets_impl(
             "message": f"Deletion failed: {str(e)}"
         }
 
+async def current_status_impl(
+    conn,
+    user_id: int,
+    reference_date: str = None,
+    budget_type: str = None,
+    category: str = None,
+    subcategory: str = None,
+    period: str = None
+) -> dict:
+    # 1. Resolve reference date
+    try:
+        ref_date = pydate.fromisoformat(reference_date) if reference_date else pydate.today()
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"Invalid reference_date format: {str(e)}"
+        }
+
+    # 2. Casing normalization for category/subcategory filters
+    matched_filter_cat = None
+    matched_filter_sub = None
+    if category:
+        try:
+            matched_filter_cat, matched_filter_sub = validate_category_and_subcategory(category, subcategory)
+        except ValueError:
+            return {
+                "status": "ok",
+                "reference_date": ref_date.isoformat(),
+                "budgets": []
+            }
+
+    # 3. Retrieve matching active budgets
+    query = (
+        "SELECT id, budget_type, category, subcategory, amount, period, "
+        "start_date::text, end_date::text FROM budgets "
+        "WHERE user_id = $1 AND start_date <= $2 AND end_date >= $2"
+    )
+    params = [user_id, ref_date]
+    param_idx = 3
+
+    if budget_type:
+        query += f" AND budget_type = ${param_idx}"
+        params.append(budget_type)
+        param_idx += 1
+    if matched_filter_cat:
+        query += f" AND category = ${param_idx}"
+        params.append(matched_filter_cat)
+        param_idx += 1
+    if matched_filter_sub:
+        query += f" AND subcategory = ${param_idx}"
+        params.append(matched_filter_sub)
+        param_idx += 1
+    if period:
+        query += f" AND period = ${param_idx}"
+        params.append(period)
+        param_idx += 1
+
+    query += " ORDER BY id ASC"
+    rows = await conn.fetch(query, *params)
+
+    # 4. Aggregating expenses for each budget
+    budget_status_list = []
+    for r in rows:
+        bid = r["id"]
+        b_type = r["budget_type"]
+        b_cat = r["category"]
+        b_sub = r["subcategory"]
+        b_amount = r["amount"]
+        b_period = r["period"]
+        b_start = pydate.fromisoformat(r["start_date"])
+        b_end = pydate.fromisoformat(r["end_date"])
+
+        # Construct expense sum query
+        exp_query = (
+            "SELECT COALESCE(SUM(amount), 0.0) FROM expenses "
+            "WHERE user_id = $1 AND date BETWEEN $2 AND $3"
+        )
+        exp_params = [user_id, b_start, b_end]
+        exp_param_idx = 4
+
+        if b_type == "category":
+            exp_query += f" AND category = ${exp_param_idx}"
+            exp_params.append(b_cat)
+            exp_param_idx += 1
+        elif b_type == "subcategory":
+            exp_query += f" AND category = ${exp_param_idx} AND subcategory = ${exp_param_idx+1}"
+            exp_params.extend([b_cat, b_sub])
+            exp_param_idx += 2
+
+        total_spent = await conn.fetchval(exp_query, *exp_params)
+
+        # Calculations
+        remaining = b_amount - total_spent
+        percentage = (total_spent / b_amount) * 100.0 if b_amount > 0 else (100.0 if total_spent > 0 else 0.0)
+        status_label = "over_budget" if total_spent > b_amount else "under_budget"
+
+        budget_status_list.append({
+            "budget_id": bid,
+            "budget_type": b_type,
+            "category": b_cat,
+            "subcategory": b_sub,
+            "period": b_period,
+            "start_date": r["start_date"],
+            "end_date": r["end_date"],
+            "limit_amount": b_amount,
+            "total_spent": total_spent,
+            "remaining": remaining,
+            "percentage_spent": round(percentage, 2),
+            "status": status_label
+        })
+
+    return {
+        "status": "ok",
+        "reference_date": ref_date.isoformat(),
+        "budgets": budget_status_list
+    }
+
+
 
