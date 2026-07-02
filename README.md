@@ -266,6 +266,38 @@ Deletes budget limits and criteria based on search filters. At least one target 
     *   `period` (str): Delete budgets of a specific period.
 *   **Response**: `{"status": "ok", "deleted_count": N, "deleted_ids": [...]}`
 
+### 10. `current_status`
+Retrieves a real-time status dashboard comparing active budgets against actual expenses.
+*   **Parameters**:
+    *   `reference_date` (str, Optional): Check budgets active on this ISO date (`YYYY-MM-DD`). Defaults to today.
+    *   `budget_type` (str, Optional): Filter by scope (`overall`, `category`, `subcategory`).
+    *   `category` (str, Optional): Filter by category.
+    *   `subcategory` (str, Optional): Filter by subcategory.
+    *   `period` (str, Optional): Filter by duration (`weekly`, `monthly`, `quarterly`, `yearly`).
+*   **Response**:
+    ```json
+    {
+      "status": "ok",
+      "reference_date": "2026-07-02",
+      "budgets": [
+        {
+          "budget_id": 24,
+          "budget_type": "overall",
+          "category": null,
+          "subcategory": null,
+          "period": "monthly",
+          "start_date": "2026-07-01",
+          "end_date": "2026-07-31",
+          "limit_amount": 1000.0,
+          "total_spent": 180.0,
+          "remaining": 820.0,
+          "percentage_spent": 18.0,
+          "status": "under_budget"
+        }
+      ]
+    }
+    ```
+
 ---
 
 ## 📂 Resource Catalog

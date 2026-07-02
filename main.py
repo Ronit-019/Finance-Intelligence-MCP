@@ -533,6 +533,37 @@ async def delete_budgets(
             period=period
         )
 
+@mcp.tool
+async def current_status(
+    reference_date: str = None,
+    budget_type: str = None,
+    category: str = None,
+    subcategory: str = None,
+    period: str = None
+) -> dict:
+    """
+    Get the real-time spending status compared against active budgets on a given reference date.
+    All provided filters are combined using AND.
+    
+    :param reference_date: ISO date (YYYY-MM-DD) to check active budgets. Defaults to today's local date.
+    :param budget_type: Optional filter by budget scope: 'overall', 'category', or 'subcategory'.
+    :param category: Optional filter by category name.
+    :param subcategory: Optional filter by subcategory name.
+    :param period: Optional filter by duration: 'weekly', 'monthly', 'quarterly', or 'yearly'.
+    :return: A status summary comparing active budgets with actual expenses.
+    """
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        user_id = await get_authenticated_user_id(conn)
+        return await budget.current_status_impl(
+            conn, user_id,
+            reference_date=reference_date,
+            budget_type=budget_type,
+            category=category,
+            subcategory=subcategory,
+            period=period
+        )
+
 @mcp.resource("expense://categories", mime_type="application/json")
 def resources():
     """Read Fresh each time so you can edit the file without restarting"""
