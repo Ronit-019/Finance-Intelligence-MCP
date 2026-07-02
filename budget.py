@@ -142,3 +142,52 @@ async def create_budget_impl(
         "created_count": len(created_ids),
         "created_ids": created_ids
     }
+
+async def list_budgets_impl(
+    conn,
+    user_id: int,
+    budget_type: str = None,
+    category: str = None,
+    subcategory: str = None,
+    period: str = None
+) -> list:
+    matched_cat = None
+    matched_sub = None
+    
+    if category:
+        try:
+            matched_cat, matched_sub = validate_category_and_subcategory(category, subcategory)
+        except ValueError:
+            return []
+
+    query = (
+        "SELECT id, budget_type, category, subcategory, amount, period, "
+        "start_date::text, end_date::text FROM budgets WHERE user_id = $1"
+    )
+    params = [user_id]
+    param_idx = 2
+    
+    if budget_type:
+        query += f" AND budget_type = ${param_idx}"
+        params.append(budget_type)
+        param_idx += 1
+        
+    if matched_cat:
+        query += f" AND category = ${param_idx}"
+        params.append(matched_cat)
+        param_idx += 1
+        
+    if matched_sub:
+        query += f" AND subcategory = ${param_idx}"
+        params.append(matched_sub)
+        param_idx += 1
+        
+    if period:
+        query += f" AND period = ${param_idx}"
+        params.append(period)
+        param_idx += 1
+        
+    query += " ORDER BY id ASC"
+    
+    rows = await conn.fetch(query, *params)
+    return [dict(row) for row in rows]
