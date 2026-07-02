@@ -254,6 +254,18 @@ Updates budget limits and criteria based on search filters. At least one target 
     *   `subcategory` (str): New subcategory key.
 *   **Response**: `{"status": "ok", "updated_count": N, "updated_ids": [...]}`
 
+### 9. `delete_budgets`
+Deletes budget limits and criteria based on search filters. At least one target filter must be provided.
+*   **Filters** (At least one required):
+    *   `budget_ids` (list[int]): Delete specific budget record IDs.
+    *   `start_date` (str): Delete budgets starting on or after this date.
+    *   `end_date` (str): Delete budgets ending on or before this date (requires `start_date`).
+    *   `budget_type` (str): Delete budgets of a specific scope.
+    *   `category` (str): Delete budgets of a specific category.
+    *   `subcategory` (str): Delete budgets of a specific subcategory.
+    *   `period` (str): Delete budgets of a specific period.
+*   **Response**: `{"status": "ok", "deleted_count": N, "deleted_ids": [...]}`
+
 ---
 
 ## 📂 Resource Catalog

@@ -495,6 +495,44 @@ async def update_budgets(
             subcategory=subcategory
         )
 
+@mcp.tool
+async def delete_budgets(
+    budget_ids: list[int] = None,
+    start_date: str = None,
+    end_date: str = None,
+    budget_type: str = None,
+    category: str = None,
+    subcategory: str = None,
+    period: str = None
+) -> dict:
+    """
+    Delete budgets matching the target filters.
+    At least one target filter must be provided.
+    All provided filters are combined using AND.
+    
+    :param budget_ids: List of specific budget IDs to delete.
+    :param start_date: Filter start date in YYYY-MM-DD format (delete budgets starting on or after this date).
+    :param end_date: Filter end date in YYYY-MM-DD format (delete budgets ending on or before this date; requires start_date).
+    :param budget_type: Budget scope: 'overall', 'category', or 'subcategory'.
+    :param category: Category name to filter target budgets.
+    :param subcategory: Subcategory name to filter target budgets.
+    :param period: Recurrence period to filter target budgets.
+    :return: A status dictionary indicating status and list of deleted IDs.
+    """
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        user_id = await get_authenticated_user_id(conn)
+        return await budget.delete_budgets_impl(
+            conn, user_id,
+            budget_ids=budget_ids,
+            start_date=start_date,
+            end_date=end_date,
+            budget_type=budget_type,
+            category=category,
+            subcategory=subcategory,
+            period=period
+        )
+
 @mcp.resource("expense://categories", mime_type="application/json")
 def resources():
     """Read Fresh each time so you can edit the file without restarting"""
