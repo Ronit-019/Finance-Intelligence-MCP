@@ -5,6 +5,7 @@ import os
 import getpass
 from dotenv import load_dotenv
 from datetime import date as pydate
+import budget
 
 # Load configuration from .env file
 load_dotenv()
@@ -371,6 +372,46 @@ async def update_expenses(
             "updated_count": len(updated_ids),
             "updated_ids": updated_ids
         }
+
+@mcp.tool
+async def create_budget(
+    budget_type: str = None,
+    amount: float = None,
+    period: str = None,
+    start_date: str = None,
+    end_date: str = None,
+    category: str = None,
+    subcategory: str = None,
+    budgets: list[dict] = None
+) -> dict:
+    """
+    Create one or more budget tracking limits.
+    You can either pass single budget parameters or a list of budget dicts in 'budgets'.
+    
+    :param budget_type: 'overall', 'category', or 'subcategory'.
+    :param amount: Budget limit amount.
+    :param period: 'weekly', 'monthly', 'quarterly', or 'yearly'.
+    :param start_date: ISO start date (YYYY-MM-DD).
+    :param end_date: ISO end date (YYYY-MM-DD).
+    :param category: Optional category name.
+    :param subcategory: Optional subcategory name.
+    :param budgets: Optional list of budget dictionaries for bulk insertion.
+    :return: A status dictionary containing details of the created budgets.
+    """
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        user_id = await get_authenticated_user_id(conn)
+        return await budget.create_budget_impl(
+            conn, user_id,
+            budget_type=budget_type,
+            amount=amount,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            category=category,
+            subcategory=subcategory,
+            budgets=budgets
+        )
 
 @mcp.resource("expense://categories", mime_type="application/json")
 def resources():
