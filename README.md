@@ -236,6 +236,24 @@ Lists all budget items with optional parameter filtering.
     *   `period` (str, Optional): Filter by period.
 *   **Response**: A list of matched budget entries.
 
+### 8. `update_budgets`
+Updates budget limits and criteria based on search filters. At least one target filter and one field value must be provided.
+*   **Filters** (At least one required):
+    *   `budget_ids` (list[int]): Update specific budget record IDs.
+    *   `filter_budget_type` (str): Target budget scope (`overall`, `category`, `subcategory`).
+    *   `filter_category` (str): Target category name.
+    *   `filter_subcategory` (str): Target subcategory name.
+    *   `filter_period` (str): Target period duration.
+*   **Update values** (At least one required):
+    *   `budget_type` (str): New budget scope.
+    *   `amount` (float): New limit amount.
+    *   `period` (str): New period duration.
+    *   `start_date` (str): New ISO format start date.
+    *   `end_date` (str): New ISO format end date.
+    *   `category` (str): New category key.
+    *   `subcategory` (str): New subcategory key.
+*   **Response**: `{"status": "ok", "updated_count": N, "updated_ids": [...]}`
+
 ---
 
 ## 📂 Resource Catalog

@@ -441,6 +441,60 @@ async def list_budgets(
             period=period
         )
 
+@mcp.tool
+async def update_budgets(
+    budget_ids: list[int] = None,
+    filter_budget_type: str = None,
+    filter_category: str = None,
+    filter_subcategory: str = None,
+    filter_period: str = None,
+    budget_type: str = None,
+    amount: float = None,
+    period: str = None,
+    start_date: str = None,
+    end_date: str = None,
+    category: str = None,
+    subcategory: str = None
+) -> dict:
+    """
+    Update budgets matching the target filters with the specified values.
+    At least one target filter and one update value must be provided.
+    All provided filters are combined using AND.
+    
+    :param budget_ids: List of specific budget IDs to update.
+    :param filter_budget_type: Filter by target scope: 'overall', 'category', or 'subcategory'.
+    :param filter_category: Filter by target category name.
+    :param filter_subcategory: Filter by target subcategory name.
+    :param filter_period: Filter by target period duration.
+    
+    :param budget_type: New budget type ('overall', 'category', 'subcategory').
+    :param amount: New budget limit amount.
+    :param period: New period duration ('weekly', 'monthly', 'quarterly', 'yearly').
+    :param start_date: New effectiveness start date (YYYY-MM-DD).
+    :param end_date: New effectiveness end date (YYYY-MM-DD).
+    :param category: New category name.
+    :param subcategory: New subcategory name.
+    :return: A status dictionary indicating status and number of updated records.
+    """
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        user_id = await get_authenticated_user_id(conn)
+        return await budget.update_budgets_impl(
+            conn, user_id,
+            budget_ids=budget_ids,
+            filter_budget_type=filter_budget_type,
+            filter_category=filter_category,
+            filter_subcategory=filter_subcategory,
+            filter_period=filter_period,
+            budget_type=budget_type,
+            amount=amount,
+            period=period,
+            start_date=start_date,
+            end_date=end_date,
+            category=category,
+            subcategory=subcategory
+        )
+
 @mcp.resource("expense://categories", mime_type="application/json")
 def resources():
     """Read Fresh each time so you can edit the file without restarting"""
