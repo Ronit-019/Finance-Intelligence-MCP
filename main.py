@@ -413,6 +413,34 @@ async def create_budget(
             budgets=budgets
         )
 
+@mcp.tool
+async def list_budgets(
+    budget_type: str = None,
+    category: str = None,
+    subcategory: str = None,
+    period: str = None
+) -> list:
+    """
+    List all budgets matching the optional filters.
+    All provided filters are combined using AND.
+    
+    :param budget_type: Optional filter by scope: 'overall', 'category', or 'subcategory'.
+    :param category: Optional filter by category name.
+    :param subcategory: Optional filter by subcategory name.
+    :param period: Optional filter by duration: 'weekly', 'monthly', 'quarterly', or 'yearly'.
+    :return: A list of budgets matching the filters.
+    """
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        user_id = await get_authenticated_user_id(conn)
+        return await budget.list_budgets_impl(
+            conn, user_id,
+            budget_type=budget_type,
+            category=category,
+            subcategory=subcategory,
+            period=period
+        )
+
 @mcp.resource("expense://categories", mime_type="application/json")
 def resources():
     """Read Fresh each time so you can edit the file without restarting"""
