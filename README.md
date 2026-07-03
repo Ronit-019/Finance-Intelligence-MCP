@@ -324,6 +324,36 @@ Generates time-series trend and grouping column analytics plots of actual user e
     }
     ```
 
+### 12. `financial_health_score`
+Calculates a deterministic score (out of 100) and grade assessing a user's financial health based on 6 core criteria.
+*   **Parameters**:
+    *   `reference_month` (str, Optional): Target month to evaluate in `YYYY-MM` format. Defaults to the current month.
+*   **Response**:
+    ```json
+    {
+      "status": "ok",
+      "reference_month": "2026-07",
+      "financial_health_score": 86,
+      "grade": "Excellent",
+      "breakdown": {
+        "budget_adherence": 10,
+        "expense_stability": 10,
+        "savings_capacity": 10,
+        "category_balance": 10,
+        "large_expense_ratio": 2,
+        "spending_trend": 10
+      },
+      "reasons": {
+        "budget_adherence": "Excellent! You stayed within all defined budget limits.",
+        "expense_stability": "Highly stable: Month-to-month spending remains highly consistent.",
+        "savings_capacity": "Superb! You saved 83.0% of your budgeted limit.",
+        "category_balance": "Ideal allocation: Discretionary wants make up 30% or less of total spending.",
+        "large_expense_ratio": "Extreme concentration: Single transaction consumed more than 50% of the entire monthly spent.",
+        "spending_trend": "Positive progress! Spending decreased by 15.0% MoM."
+      }
+    }
+    ```
+
 ---
 
 ## 📂 Resource Catalog
