@@ -6,6 +6,7 @@ import getpass
 from dotenv import load_dotenv
 from datetime import date as pydate
 import budget
+import analytics
 
 # Load configuration from .env file
 load_dotenv()
@@ -562,6 +563,40 @@ async def current_status(
             category=category,
             subcategory=subcategory,
             period=period
+        )
+
+@mcp.tool
+async def expense_summary(
+    period: str = None,
+    group_by: str = None,
+    category: str = None,
+    subcategory: str = None,
+    start_date: str = None,
+    end_date: str = None
+) -> dict:
+    """
+    Generate an analytical expense summary with a rich Matplotlib chart.
+    At least one grouping dimension ('period' or 'group_by') is recommended.
+    
+    :param period: Time aggregation: 'weekly', 'monthly', 'quarterly', 'yearly'.
+    :param group_by: Column to group by: 'category', 'subcategory'.
+    :param category: Optional filter by category.
+    :param subcategory: Optional filter by subcategory.
+    :param start_date: Optional filter to include expenses on or after this ISO date (YYYY-MM-DD).
+    :param end_date: Optional filter to include expenses on or before this ISO date (YYYY-MM-DD).
+    :return: A status dictionary containing the path to the generated chart image, markdown links, and tabular data.
+    """
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        user_id = await get_authenticated_user_id(conn)
+        return await analytics.expense_summary_impl(
+            conn, user_id,
+            period=period,
+            group_by=group_by,
+            category=category,
+            subcategory=subcategory,
+            start_date=start_date,
+            end_date=end_date
         )
 
 @mcp.resource("expense://categories", mime_type="application/json")

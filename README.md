@@ -298,6 +298,32 @@ Retrieves a real-time status dashboard comparing active budgets against actual e
     }
     ```
 
+### 11. `expense_summary`
+Generates time-series trend and grouping column analytics plots of actual user expenses, rendered via `matplotlib`.
+*   **Parameters**:
+    *   `period` (str, Optional): Time bucket to group by: `'weekly'`, `'monthly'`, `'quarterly'`, or `'yearly'`.
+    *   `group_by` (str, Optional): Category split to group by: `'category'` or `'subcategory'`.
+    *   `category` (str, Optional): Filter results to a specific category.
+    *   `subcategory` (str, Optional): Filter results to a specific subcategory.
+    *   `start_date` (str, Optional): Include expenses on or after this ISO date.
+    *   `end_date` (str, Optional): Include expenses on or before this ISO date.
+*   **Response**:
+    ```json
+    {
+      "status": "ok",
+      "chart_path": "c:\\Users\\Admin\\Desktop\\Finance Intelligence MCP\\charts\\expense_analysis.png",
+      "chart_url": "file:///c:/Users/Admin/Desktop/Finance%20Intelligence%20MCP/charts/expense_analysis.png",
+      "message": "Expense analytics trend chart generated successfully:\n\n![Expense Analytics Chart](file:///c:/Users/Admin/Desktop/Finance%20Intelligence%20MCP/charts/expense_analysis.png)",
+      "data": [
+        {
+          "period_bucket": "2026-03-01",
+          "total_amount": 180.0,
+          "transaction_count": 2
+        }
+      ]
+    }
+    ```
+
 ---
 
 ## 📂 Resource Catalog
