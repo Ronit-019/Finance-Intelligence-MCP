@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from datetime import date as pydate
 import budget
 import analytics
+import health
 
 # Load configuration from .env file
 load_dotenv()
@@ -597,6 +598,22 @@ async def expense_summary(
             subcategory=subcategory,
             start_date=start_date,
             end_date=end_date
+        )
+
+@mcp.tool
+async def financial_health_score(reference_month: str = None) -> dict:
+    """
+    Calculate a deterministic financial health score and feedback metrics.
+    
+    :param reference_month: Optional target month to evaluate in YYYY-MM format. Defaults to current month.
+    :return: A status dictionary containing the overall health score, grade, breakdown of the 6 KPIs, and detailed reasons.
+    """
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        user_id = await get_authenticated_user_id(conn)
+        return await health.financial_health_score_impl(
+            conn, user_id,
+            reference_month=reference_month
         )
 
 @mcp.resource("expense://categories", mime_type="application/json")
