@@ -437,7 +437,7 @@ async def delete_budgets_impl(
             "message": f"Deletion failed: {str(e)}"
         }
 
-async def current_status_impl(
+async def compare_budget_vs_expenses_impl(
     conn,
     user_id: int,
     reference_date: str = None,

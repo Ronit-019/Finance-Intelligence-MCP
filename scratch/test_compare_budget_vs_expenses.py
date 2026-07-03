@@ -75,7 +75,7 @@ async def run_tests():
         
         # --- TEST 1: Check status on Reference Date 2026-07-02 ---
         print("\n--- Test 1: Retrieve status comparing budgets and expenses ---")
-        res = await budget.current_status_impl(conn, user_id, reference_date="2026-07-02")
+        res = await budget.compare_budget_vs_expenses_impl(conn, user_id, reference_date="2026-07-02")
         print("Status response:", res)
         assert res["status"] == "ok"
         
@@ -117,7 +117,7 @@ async def run_tests():
         print("\n--- Test 2: Add expense and check over budget status ---")
         await main.add_expense("2026-07-05", 15.0, "food", "snacks", "Snacks")
         
-        res = await budget.current_status_impl(conn, user_id, reference_date="2026-07-02")
+        res = await budget.compare_budget_vs_expenses_impl(conn, user_id, reference_date="2026-07-02")
         budgets_res = {b["budget_id"]: b for b in res["budgets"]}
         
         # Food category budget is now 60 + 40 + 15 = 115.0 (limit 100.0) -> over_budget
@@ -132,19 +132,19 @@ async def run_tests():
         # --- TEST 3: Filters option testing ---
         print("\n--- Test 3: Filter parameters check ---")
         # Filter by budget type overall
-        res_filtered = await budget.current_status_impl(conn, user_id, reference_date="2026-07-02", budget_type="overall")
+        res_filtered = await budget.compare_budget_vs_expenses_impl(conn, user_id, reference_date="2026-07-02", budget_type="overall")
         assert len(res_filtered["budgets"]) == 1
         assert res_filtered["budgets"][0]["budget_id"] == overall_id
         
         # Filter by category utilities (no active utility budgets)
-        res_empty = await budget.current_status_impl(conn, user_id, reference_date="2026-07-02", category="utilities")
+        res_empty = await budget.compare_budget_vs_expenses_impl(conn, user_id, reference_date="2026-07-02", category="utilities")
         assert len(res_empty["budgets"]) == 0
         print("Verify Test 3 Passed!")
         
         # --- TEST 4: Date bounds testing ---
         print("\n--- Test 4: Date boundary check ---")
         # Check on August 1st -> No active budgets should match
-        res_aug = await budget.current_status_impl(conn, user_id, reference_date="2026-08-01")
+        res_aug = await budget.compare_budget_vs_expenses_impl(conn, user_id, reference_date="2026-08-01")
         assert len(res_aug["budgets"]) == 0
         print("Verify Test 4 Passed!")
 

@@ -184,13 +184,16 @@ Retrieves expense list within a designated time window.
     *   `end_date` (str, Required): ISO format (`YYYY-MM-DD`).
 *   **Response**: A list of expense records matching criteria.
 
-### 3. `summarize`
-Summarizes transaction amounts grouped by category.
+### 3. `expense_breakdown`
+Summarizes and breaks down expense transaction amounts grouped by dynamic columns or date levels.
 *   **Parameters**:
-    *   `start_date` (str, Required): Start date window.
-    *   `end_date` (str, Required): End date window.
-    *   `category` (str, Optional): Retrieve only summary of a specific category.
-*   **Response**: A list of aggregated categories and their total values.
+    *   `start_date` (str, Required): Start date window (`YYYY-MM-DD`).
+    *   `end_date` (str, Required): End date window (`YYYY-MM-DD`).
+    *   `group_by` (str, Optional): Dimension to group by: `'category'`, `'subcategory'`, `'note'`, or `'date'`. Defaults to `'category'`.
+    *   `breakdown` (str, Optional): Date grouping unit: `'day'`, `'month'`, or `'year'`. Defaults to `'day'` if `group_by` is `'date'`.
+    *   `category` (str, Optional): Filter results to a specific category.
+    *   `subcategory` (str, Optional): Filter results to a specific subcategory.
+*   **Response**: A list of aggregated groups showing `group_dimension`, `total_amount`, and `transaction_count`.
 
 ### 4. `delete_expenses`
 Performs clean-up of expenses according to filter options. *At least one filter must be passed to protect records.*
@@ -266,7 +269,7 @@ Deletes budget limits and criteria based on search filters. At least one target 
     *   `period` (str): Delete budgets of a specific period.
 *   **Response**: `{"status": "ok", "deleted_count": N, "deleted_ids": [...]}`
 
-### 10. `current_status`
+### 10. `compare_budget_vs_expenses`
 Retrieves a real-time status dashboard comparing active budgets against actual expenses.
 *   **Parameters**:
     *   `reference_date` (str, Optional): Check budgets active on this ISO date (`YYYY-MM-DD`). Defaults to today.

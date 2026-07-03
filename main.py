@@ -122,7 +122,11 @@ async def add_expense(date: str, amount: float, category: str, subcategory: str 
 
 @mcp.tool
 async def list_expenses(start_date: str, end_date: str):
-    """List all expenses from the database within a date range (inclusive)"""
+    """
+    List all expenses from the database within a date range (inclusive).
+    If the list contains more than 50 items, it truncates the inline results to the first 50
+    and exports the full dataset to a downloadable CSV spreadsheet.
+    """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
         user_id = await get_authenticated_user_id(conn)
@@ -137,32 +141,117 @@ async def list_expenses(start_date: str, end_date: str):
             """,
             user_id, parsed_start, parsed_end
         )
+        
+        total_count = len(rows)
+        if total_count > 50:
+            import openpyxl
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.title = "Expenses"
+            ws.append(["ID", "Date", "Amount", "Category", "Subcategory", "Note"])
+            for r in rows:
+                ws.append([r["id"], r["date"], r["amount"], r["category"], r["subcategory"], r["note"]])
+                
+            for col in ws.columns:
+                max_len = max(len(str(cell.value or '')) for cell in col)
+                col_letter = openpyxl.utils.get_column_letter(col[0].column)
+                ws.column_dimensions[col_letter].width = max(max_len + 3, 10)
+                
+            exports_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "exports")
+            os.makedirs(exports_dir, exist_ok=True)
+            export_filename = f"expenses_{start_date}_to_{end_date}.xlsx"
+            export_path = os.path.join(exports_dir, export_filename)
+            wb.save(export_path)
+            
+            file_url = f"file:///{export_path.replace(os.sep, '/')}"
+            return {
+                "status": "ok",
+                "message": f"Retrieved {total_count} expenses. The list is long, so we have truncated the inline list to the first 50 items and exported the complete dataset to a downloadable Excel sheet.",
+                "export_url": file_url,
+                "data": [dict(row) for row in rows[:50]]
+            }
+            
         return [dict(row) for row in rows]
 
 @mcp.tool
-async def summarize(start_date: str, end_date: str, category: str = None):
-    """Summarize expenses by category on the basis of the date range"""
+async def expense_breakdown(
+    start_date: str,
+    end_date: str,
+    group_by: str = "category",
+    breakdown: str = None,
+    category: str = None,
+    subcategory: str = None
+) -> list:
+    """
+    Summarize and breakdown expenses by columns or time units within a date range.
+    
+    :param start_date: Start date in YYYY-MM-DD format (inclusive).
+    :param end_date: End date in YYYY-MM-DD format (inclusive).
+    :param group_by: Dimension to group by: 'category', 'subcategory', 'note', or 'date'. Defaults to 'category'.
+    :param breakdown: Date grouping unit: 'day', 'month', or 'year'. Defaults to 'day' if group_by is 'date'.
+    :param category: Optional filter by category name.
+    :param subcategory: Optional filter by subcategory name.
+    :return: A list of summarized expense groups with total amounts and transaction counts.
+    """
+    if group_by not in ["category", "subcategory", "note", "date"]:
+        raise ValueError("Invalid group_by. Allowed: 'category', 'subcategory', 'note', 'date'.")
+        
+    if breakdown and breakdown not in ["day", "month", "year"]:
+        raise ValueError("Invalid breakdown. Allowed: 'day', 'month', 'year'.")
+
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
         user_id = await get_authenticated_user_id(conn)
         parsed_start = pydate.fromisoformat(start_date)
         parsed_end = pydate.fromisoformat(end_date)
         
-        query = """
-            SELECT category, SUM(amount) as total_amount
+        # Determine select column
+        select_col = "category"
+        if group_by == "subcategory":
+            select_col = "subcategory"
+        elif group_by == "note":
+            select_col = "note"
+        elif group_by == "date":
+            b_unit = breakdown or "day"
+            if b_unit == "day":
+                select_col = "date::text"
+            elif b_unit == "month":
+                select_col = "DATE_TRUNC('month', date)::date::text"
+            elif b_unit == "year":
+                select_col = "DATE_TRUNC('year', date)::date::text"
+                
+        # Build query
+        query = f"""
+            SELECT {select_col} as group_dimension, SUM(amount) as total_amount, COUNT(id) as transaction_count
             FROM expenses
             WHERE user_id = $1 AND date BETWEEN $2 AND $3
         """
         params = [user_id, parsed_start, parsed_end]
+        param_idx = 4
         
         if category:
-            query += " AND category = $4"
-            params.append(category)
+            try:
+                matched_cat, matched_sub = budget.validate_category_and_subcategory(category, subcategory)
+            except ValueError:
+                return []
+                
+            query += f" AND category = ${param_idx}"
+            params.append(matched_cat)
+            param_idx += 1
+            if matched_sub:
+                query += f" AND subcategory = ${param_idx}"
+                params.append(matched_sub)
+                param_idx += 1
+        elif subcategory:
+            query += f" AND subcategory = ${param_idx}"
+            params.append(subcategory)
+            param_idx += 1
             
-        query += " GROUP BY category ORDER BY category ASC"
+        query += " GROUP BY group_dimension ORDER BY group_dimension ASC"
         
         rows = await conn.fetch(query, *params)
         return [dict(row) for row in rows]
+
 
 @mcp.tool
 async def delete_expenses(
@@ -536,7 +625,7 @@ async def delete_budgets(
         )
 
 @mcp.tool
-async def current_status(
+async def compare_budget_vs_expenses(
     reference_date: str = None,
     budget_type: str = None,
     category: str = None,
@@ -557,7 +646,7 @@ async def current_status(
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
         user_id = await get_authenticated_user_id(conn)
-        return await budget.current_status_impl(
+        return await budget.compare_budget_vs_expenses_impl(
             conn, user_id,
             reference_date=reference_date,
             budget_type=budget_type,
