@@ -6,6 +6,8 @@
 [![MCP Specification](https://img.shields.io/badge/MCP-Compatible-orange.svg)](https://modelcontextprotocol.io/)
 [![Database](https://img.shields.io/badge/database-PostgreSQL-blue.svg)](https://www.postgresql.org/)
 
+<!-- mcp-name: io.github.Ronit-019/finance-intelligence -->
+
 Finance Intelligence MCP is a production-ready **Model Context Protocol (MCP)** server that enables AI assistants (like Claude, Cursor, and others) to securely manage and analyze personal finances through natural language. 
 
 Released under the MIT License and designed to be extended with additional finance tools.
