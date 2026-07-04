@@ -27,10 +27,9 @@ async def run_tests():
             print(f"Local auth succeeded! User ID resolved: {user_id}")
             assert user_id > 0
             
-            # --- TEST 2: Simulate cloud connection without token ---
-            print("\n--- Test 2: Simulate cloud connection without token ---")
+            # --- TEST 2: Simulate cloud connection without user_key ---
+            print("\n--- Test 2: Simulate cloud connection without user_key ---")
             main.get_http_headers = lambda: {}  # mock cloud request with no headers
-            main.get_http_request = lambda: None  # mock no request query params
             
             try:
                 await main.get_authenticated_user_id(conn)
@@ -44,36 +43,36 @@ async def run_tests():
             res = await main.register_user()
             print("Registration result:", res)
             assert res["status"] == "ok"
-            assert "token" in res
+            assert "user_key" in res
             
-            registered_token = res["token"]
+            registered_key = res["user_key"]
             
             # Check database entry
-            db_user = await conn.fetchrow("SELECT id, username, token FROM users WHERE token = $1", registered_token)
+            db_user = await conn.fetchrow("SELECT id, username, token FROM users WHERE token = $1", registered_key)
             print("DB User record:", dict(db_user))
             assert db_user is not None
-            assert db_user["token"] == registered_token
-            assert db_user["username"] == registered_token
+            assert db_user["token"] == registered_key
+            assert db_user["username"] == registered_key
             
             # --- TEST 4: Simulate cloud connection using headers ---
             print("\n--- Test 4: Simulate cloud connection using x-token header ---")
-            main.get_http_headers = lambda: {"x-token": registered_token}
+            main.get_http_headers = lambda: {"x-token": registered_key}
             
             resolved_id = await main.get_authenticated_user_id(conn)
             print(f"Cloud header auth succeeded! Resolved ID: {resolved_id}")
             assert resolved_id == db_user["id"]
             
-            # --- TEST 5: Simulate cloud connection with tool parameter argument ---
-            print("\n--- Test 5: Simulate cloud connection with token parameter passed as tool argument ---")
+            # --- TEST 5: Simulate cloud connection with user_key parameter passed as tool argument ---
+            print("\n--- Test 5: Simulate cloud connection with user_key parameter passed as tool argument ---")
             main.get_http_headers = lambda: {}  # Cloud env (headers exist but no token)
             
-            resolved_id_param = await main.get_authenticated_user_id(conn, registered_token)
+            resolved_id_param = await main.get_authenticated_user_id(conn, registered_key)
             print(f"Cloud parameter auth succeeded! Resolved ID: {resolved_id_param}")
             assert resolved_id_param == db_user["id"]
             
             # Clean up the generated test user
             print("\nCleaning up registered test user...")
-            await conn.execute("DELETE FROM users WHERE token = $1", registered_token)
+            await conn.execute("DELETE FROM users WHERE token = $1", registered_key)
             print("Cleanup done!")
             
         finally:

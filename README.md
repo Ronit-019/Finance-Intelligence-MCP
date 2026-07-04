@@ -363,8 +363,8 @@ Generates a secure UUID token and registers the user in the database.
     ```json
     {
       "status": "ok",
-      "message": "Registration successful! To secure your private database workspace, please tell me (Claude) your new token, and I will use it for all subsequent operations in this chat:",
-      "token": "4a7b2c9d-8e1f-4b3c-9a2d-1234567890ab"
+      "message": "Registration successful! To secure your private database workspace, please tell me (Claude) your new user_key, and I will use it for all subsequent operations in this chat:",
+      "user_key": "4a7b2c9d-8e1f-4b3c-9a2d-1234567890ab"
     }
     ```
 
