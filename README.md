@@ -357,6 +357,21 @@ Calculates a deterministic score (out of 100) and grade assessing a user's finan
     }
     ```
 
+### 13. `register_user`
+Generates a secure UUID token and returns copy-pasteable custom connector URLs and headers for multi-user isolation on cloud hosts.
+*   **Response**:
+    ```json
+    {
+      "status": "ok",
+      "message": "Registration successful! To secure your private database workspace, please copy this URL and paste it into your custom connector's 'Remote MCP server URL' field:",
+      "token": "4a7b2c9d-8e1f-4b3c-9a2d-1234567890ab",
+      "url_configuration": "https://Finance-Intelligence-MCP.fastmcp.app/mcp?token=4a7b2c9d-8e1f-4b3c-9a2d-1234567890ab",
+      "headers": {
+        "x-token": "4a7b2c9d-8e1f-4b3c-9a2d-1234567890ab"
+      }
+    }
+    ```
+
 ---
 
 ## 📂 Resource Catalog
