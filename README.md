@@ -245,3 +245,13 @@ Please open an issue before submitting major changes or pull requests.
 
 ## 📄 License
 This project is licensed under the [MIT License](LICENSE) - see the LICENSE file for details.
+
+---
+
+## 👨‍💻 Author
+
+Ronit Rajput
+
+- Portfolio: https://ronitportfolio-seven.vercel.app/assistant
+- GitHub: https://github.com/Ronit-019
+- LinkedIn: https://www.linkedin.com/in/ronit-rajput/
