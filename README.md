@@ -237,15 +237,6 @@ If the client cannot locate `uv`, update your config file to run standard Python
 
 ---
 
-## 🗺️ Roadmap
-*   Support for HTTP / SSE transport protocols.
-*   Multi-currency translation and automated updates.
-*   Automated recurring subscription and salary entries.
-*   Import from CSV / bank statement formats.
-*   Portfolio and investment tracking features.
-
----
-
 ## 🤝 Contributing
 Contributions, bug reports, and feature requests are welcome! 
 Please open an issue before submitting major changes or pull requests.
