@@ -3,7 +3,7 @@ from datetime import date as pydate
 import matplotlib
 matplotlib.use('Agg')  # Configure headless non-interactive backend
 import matplotlib.pyplot as plt
-from budget import validate_category_and_subcategory
+from .budget import validate_category_and_subcategory
 
 async def expense_summary_impl(
     conn,
