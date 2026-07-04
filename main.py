@@ -1,5 +1,6 @@
 from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_headers
+from fastmcp.server.dependencies import get_http_headers, get_http_request
+import uuid
 import asyncpg
 import os
 import getpass
@@ -73,34 +74,54 @@ async def get_pool():
 
 async def get_authenticated_user_id(conn) -> int:
     """
-    Retrieves and authenticates the user using x-username and x-token headers.
-    If no HTTP headers are present (e.g. local stdio run), falls back to 
-    DEFAULT_USER/DEFAULT_TOKEN env variables, then OS username and a local dev token.
+    Retrieves and authenticates the user.
+    For cloud Runs (HTTP/SSE), requires a secure unique UUID token via 'x-token' header 
+    or '?token=' URL parameter.
+    For local development, falls back to DEFAULT_USER / getpass.getuser() with zero setup.
     """
-    headers = get_http_headers() or {}
+    headers = get_http_headers()
+    is_http = headers is not None
     
-    # Resolve username and token with fallbacks
-    username = headers.get("x-username") or os.environ.get("DEFAULT_USER") or getpass.getuser() or "anonymous"
-    token = headers.get("x-token") or os.environ.get("DEFAULT_TOKEN") or "local_dev_token"
-    
+    if is_http:
+        # 1. Try to read from HTTP Headers
+        token = headers.get("x-token")
+        
+        # 2. Try to read from URL Query Parameters (?token=) if header is missing
+        if not token or token.strip() == "local_dev_token":
+            try:
+                request = get_http_request()
+                token = request.query_params.get("token")
+            except Exception:
+                token = None
+                
+        # Enforce valid token on cloud connections
+        if not token or token.strip() == "local_dev_token":
+            raise PermissionError(
+                "Authentication Required: You are connecting via a shared public cloud URL. "
+                "To protect your data, please run the 'register_user' tool to generate "
+                "your unique private UUID token, then paste the generated URL "
+                "(e.g. https://Finance-Intelligence-MCP.fastmcp.app/mcp?token=YOUR_UUID) "
+                "directly into your custom connector URL field."
+            )
+        # Use token value as username for token-only login
+        username = token
+    else:
+        # Local development fallback
+        username = os.environ.get("DEFAULT_USER") or getpass.getuser() or "anonymous"
+        token = os.environ.get("DEFAULT_TOKEN") or "local_dev_token"
+        
     username = username.strip()
     token = token.strip()
     
-    # Query user details
-    row = await conn.fetchrow("SELECT id, token FROM users WHERE username = $1", username)
-    
+    # Query database and match/register
+    row = await conn.fetchrow("SELECT id FROM users WHERE token = $1", token)
     if row is None:
-        # Auto-register new user with provided token
         user_id = await conn.fetchval(
             "INSERT INTO users (username, token) VALUES ($1, $2) RETURNING id",
             username, token
         )
         return user_id
     else:
-        # Verify token match
-        stored_token = row["token"]
-        if stored_token != token:
-            raise PermissionError(f"Authentication failed: Invalid token for user '{username}'.")
         return row["id"]
 
 @mcp.tool
@@ -704,6 +725,34 @@ async def financial_health_score(reference_month: str = None) -> dict:
             conn, user_id,
             reference_month=reference_month
         )
+
+@mcp.tool
+async def register_user() -> dict:
+    """
+    Generate a secure personal UUID token to isolate and protect your data.
+    Use this if you are connecting via a shared cloud URL.
+    
+    :return: A dictionary containing your unique token and custom connector URL configurations.
+    """
+    generated_token = str(uuid.uuid4())
+    
+    db_pool = await get_pool()
+    async with db_pool.acquire() as conn:
+        # Save UUID as both username and token in database
+        await conn.execute(
+            "INSERT INTO users (username, token) VALUES ($1, $2)",
+            generated_token, generated_token
+        )
+        
+        return {
+            "status": "ok",
+            "message": "Registration successful! To secure your private database workspace, please copy this URL and paste it into your custom connector's 'Remote MCP server URL' field:",
+            "token": generated_token,
+            "url_configuration": f"https://Finance-Intelligence-MCP.fastmcp.app/mcp?token={generated_token}",
+            "headers": {
+                "x-token": generated_token
+            }
+        }
 
 @mcp.resource("expense://categories", mime_type="application/json")
 def resources():
