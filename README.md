@@ -60,14 +60,6 @@ Unlike standard cloud-based personal finance apps, **Finance Intelligence MCP** 
 
 ---
 
-## 🔒 Privacy & Security
-
-*   **Strictly Local Execution**: The MCP server runs entirely on your local machine.
-*   **Direct Database Access**: Database credentials and queries are managed locally via your private `DATABASE_URL` environment variable.
-*   **No Data Transmission**: The server never transmits or logs database contents to any third-party services.
-
----
-
 ## ⚙️ Requirements & Compatibility
 
 *   **Transport**: `stdio`
