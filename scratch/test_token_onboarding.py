@@ -17,7 +17,6 @@ async def run_tests():
     async with pool.acquire() as conn:
         print("Save original handlers...")
         orig_get_headers = main.get_http_headers
-        orig_get_request = main.get_http_request
         
         try:
             # --- TEST 1: Simulate local connection ---
@@ -64,23 +63,9 @@ async def run_tests():
             print(f"Cloud header auth succeeded! Resolved ID: {resolved_id}")
             assert resolved_id == db_user["id"]
             
-            # --- TEST 5: Simulate cloud connection using URL query parameter ---
-            print("\n--- Test 5: Simulate cloud connection using ?token= query parameter ---")
-            main.get_http_headers = lambda: {}  # No headers
-            
-            class MockRequest:
-                def __init__(self, t):
-                    self.query_params = {"token": t}
-            main.get_http_request = lambda: MockRequest(registered_token)
-            
-            resolved_id_query = await main.get_authenticated_user_id(conn)
-            print(f"Cloud query parameter auth succeeded! Resolved ID: {resolved_id_query}")
-            assert resolved_id_query == db_user["id"]
-            
-            # --- TEST 6: Simulate cloud connection with tool parameter argument ---
-            print("\n--- Test 6: Simulate cloud connection with token parameter passed as tool argument ---")
+            # --- TEST 5: Simulate cloud connection with tool parameter argument ---
+            print("\n--- Test 5: Simulate cloud connection with token parameter passed as tool argument ---")
             main.get_http_headers = lambda: {}  # Cloud env (headers exist but no token)
-            main.get_http_request = lambda: None
             
             resolved_id_param = await main.get_authenticated_user_id(conn, registered_token)
             print(f"Cloud parameter auth succeeded! Resolved ID: {resolved_id_param}")
@@ -94,7 +79,6 @@ async def run_tests():
         finally:
             print("Restore original handlers...")
             main.get_http_headers = orig_get_headers
-            main.get_http_request = orig_get_request
             
     print("\nAll tests completed successfully!")
 

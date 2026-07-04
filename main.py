@@ -1,5 +1,5 @@
 from fastmcp import FastMCP
-from fastmcp.server.dependencies import get_http_headers, get_http_request
+from fastmcp.server.dependencies import get_http_headers
 import uuid
 import asyncpg
 import os
@@ -90,14 +90,6 @@ async def get_authenticated_user_id(conn, token: str = None) -> int:
         if is_http:
             # 2. Check if x-token header is present
             token = headers.get("x-token")
-            
-            # 3. Check if ?token= query parameter is present (for other SSE environments)
-            if not token or token.strip() == "local_dev_token":
-                try:
-                    request = get_http_request()
-                    token = request.query_params.get("token")
-                except Exception:
-                    token = None
             
             # Reject if no token is found on cloud connections
             if not token or token.strip() == "local_dev_token":
