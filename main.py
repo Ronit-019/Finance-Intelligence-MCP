@@ -72,44 +72,47 @@ async def get_pool():
             """)
     return pool
 
-async def get_authenticated_user_id(conn) -> int:
+async def get_authenticated_user_id(conn, token: str = None) -> int:
     """
     Retrieves and authenticates the user.
-    For cloud Runs (HTTP/SSE), requires a secure unique UUID token via 'x-token' header 
-    or '?token=' URL parameter.
+    If 'token' is provided as an argument, uses it.
+    For cloud Runs (HTTP/SSE), requires a secure unique UUID token.
     For local development, falls back to DEFAULT_USER / getpass.getuser() with zero setup.
     """
-    headers = get_http_headers()
-    is_http = headers is not None
-    
-    if is_http:
-        # 1. Try to read from HTTP Headers
-        token = headers.get("x-token")
-        
-        # 2. Try to read from URL Query Parameters (?token=) if header is missing
-        if not token or token.strip() == "local_dev_token":
-            try:
-                request = get_http_request()
-                token = request.query_params.get("token")
-            except Exception:
-                token = None
-                
-        # Enforce valid token on cloud connections
-        if not token or token.strip() == "local_dev_token":
-            raise PermissionError(
-                "Authentication Required: You are connecting via a shared public cloud URL. "
-                "To protect your data, please run the 'register_user' tool to generate "
-                "your unique private UUID token, then paste the generated URL "
-                "(e.g. https://Finance-Intelligence-MCP.fastmcp.app/mcp?token=YOUR_UUID) "
-                "directly into your custom connector URL field."
-            )
-        # Use token value as username for token-only login
+    # 1. Use the chat-provided token parameter if available
+    if token and token.strip() and token.strip() != "local_dev_token":
+        token = token.strip()
         username = token
     else:
-        # Local development fallback
-        username = os.environ.get("DEFAULT_USER") or getpass.getuser() or "anonymous"
-        token = os.environ.get("DEFAULT_TOKEN") or "local_dev_token"
+        headers = get_http_headers()
+        is_http = headers is not None
         
+        if is_http:
+            # 2. Check if x-token header is present
+            token = headers.get("x-token")
+            
+            # 3. Check if ?token= query parameter is present (for other SSE environments)
+            if not token or token.strip() == "local_dev_token":
+                try:
+                    request = get_http_request()
+                    token = request.query_params.get("token")
+                except Exception:
+                    token = None
+            
+            # Reject if no token is found on cloud connections
+            if not token or token.strip() == "local_dev_token":
+                raise PermissionError(
+                    "Authentication Required: You are connecting via a shared public cloud URL. "
+                    "To secure your private financial data, please provide your private UUID token in the chat. "
+                    "If you don't have one, ask me to run the 'register_user' tool to generate it."
+                )
+            username = token.strip()
+            token = token.strip()
+        else:
+            # Local development fallback
+            username = os.environ.get("DEFAULT_USER") or getpass.getuser() or "anonymous"
+            token = os.environ.get("DEFAULT_TOKEN") or "local_dev_token"
+            
     username = username.strip()
     token = token.strip()
     
@@ -125,11 +128,14 @@ async def get_authenticated_user_id(conn) -> int:
         return row["id"]
 
 @mcp.tool
-async def add_expense(date: str, amount: float, category: str, subcategory: str = "", note: str = ""):
-    """Add an expense to the database"""
+async def add_expense(date: str, amount: float, category: str, subcategory: str = "", note: str = "", token: str = None):
+    """Add an expense to the database.
+    
+    :param token: Your private secure UUID token (required if connecting via cloud).
+    """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         parsed_date = pydate.fromisoformat(date)
         expense_id = await conn.fetchval(
             """
@@ -142,15 +148,17 @@ async def add_expense(date: str, amount: float, category: str, subcategory: str 
         return {"status": "ok", "id": expense_id}
 
 @mcp.tool
-async def list_expenses(start_date: str, end_date: str):
+async def list_expenses(start_date: str, end_date: str, token: str = None):
     """
     List all expenses from the database within a date range (inclusive).
     If the list contains more than 50 items, it truncates the inline results to the first 50
     and exports the full dataset to a downloadable CSV spreadsheet.
+    
+    :param token: Your private secure UUID token (required if connecting via cloud).
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         parsed_start = pydate.fromisoformat(start_date)
         parsed_end = pydate.fromisoformat(end_date)
         rows = await conn.fetch(
@@ -201,7 +209,8 @@ async def expense_breakdown(
     group_by: str = "category",
     breakdown: str = None,
     category: str = None,
-    subcategory: str = None
+    subcategory: str = None,
+    token: str = None
 ) -> list:
     """
     Summarize and breakdown expenses by columns or time units within a date range.
@@ -212,6 +221,7 @@ async def expense_breakdown(
     :param breakdown: Date grouping unit: 'day', 'month', or 'year'. Defaults to 'day' if group_by is 'date'.
     :param category: Optional filter by category name.
     :param subcategory: Optional filter by subcategory name.
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A list of summarized expense groups with total amounts and transaction counts.
     """
     if group_by not in ["category", "subcategory", "note", "date"]:
@@ -222,7 +232,7 @@ async def expense_breakdown(
 
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         parsed_start = pydate.fromisoformat(start_date)
         parsed_end = pydate.fromisoformat(end_date)
         
@@ -280,7 +290,8 @@ async def delete_expenses(
     start_date: str = None,
     end_date: str = None,
     category: str = None,
-    subcategory: str = None
+    subcategory: str = None,
+    token: str = None
 ) -> dict:
     """
     Delete expenses matching the provided filters.
@@ -292,6 +303,7 @@ async def delete_expenses(
     :param end_date: End date in YYYY-MM-DD format (requires start_date).
     :param category: Category name.
     :param subcategory: Subcategory name.
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A status dictionary indicating status and number of deleted records.
     """
     if not any([expense_ids, start_date, end_date, category, subcategory]):
@@ -305,7 +317,7 @@ async def delete_expenses(
 
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         
         # Build query dynamically
         query = "DELETE FROM expenses WHERE user_id = $1"
@@ -366,7 +378,8 @@ async def update_expenses(
     amount: float = None,
     category: str = None,
     subcategory: str = None,
-    note: str = None
+    note: str = None,
+    token: str = None
 ) -> dict:
     """
     Update expenses matching the target filters with the specified values.
@@ -383,6 +396,7 @@ async def update_expenses(
     :param category: New category name.
     :param subcategory: New subcategory name.
     :param note: New note text.
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A status dictionary indicating status and number of updated records.
     """
     if not any([expense_ids, filter_start_date, filter_end_date, filter_category, filter_subcategory]):
@@ -405,7 +419,7 @@ async def update_expenses(
 
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         
         set_clauses = []
         params = []
@@ -494,7 +508,8 @@ async def create_budget(
     end_date: str = None,
     category: str = None,
     subcategory: str = None,
-    budgets: list[dict] = None
+    budgets: list[dict] = None,
+    token: str = None
 ) -> dict:
     """
     Create one or more budget tracking limits.
@@ -508,11 +523,12 @@ async def create_budget(
     :param category: Optional category name.
     :param subcategory: Optional subcategory name.
     :param budgets: Optional list of budget dictionaries for bulk insertion.
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A status dictionary containing details of the created budgets.
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         return await budget.create_budget_impl(
             conn, user_id,
             budget_type=budget_type,
@@ -530,7 +546,8 @@ async def list_budgets(
     budget_type: str = None,
     category: str = None,
     subcategory: str = None,
-    period: str = None
+    period: str = None,
+    token: str = None
 ) -> list:
     """
     List all budgets matching the optional filters.
@@ -540,11 +557,12 @@ async def list_budgets(
     :param category: Optional filter by category name.
     :param subcategory: Optional filter by subcategory name.
     :param period: Optional filter by duration: 'weekly', 'monthly', 'quarterly', or 'yearly'.
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A list of budgets matching the filters.
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         return await budget.list_budgets_impl(
             conn, user_id,
             budget_type=budget_type,
@@ -566,7 +584,8 @@ async def update_budgets(
     start_date: str = None,
     end_date: str = None,
     category: str = None,
-    subcategory: str = None
+    subcategory: str = None,
+    token: str = None
 ) -> dict:
     """
     Update budgets matching the target filters with the specified values.
@@ -586,11 +605,12 @@ async def update_budgets(
     :param end_date: New effectiveness end date (YYYY-MM-DD).
     :param category: New category name.
     :param subcategory: New subcategory name.
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A status dictionary indicating status and number of updated records.
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         return await budget.update_budgets_impl(
             conn, user_id,
             budget_ids=budget_ids,
@@ -615,7 +635,8 @@ async def delete_budgets(
     budget_type: str = None,
     category: str = None,
     subcategory: str = None,
-    period: str = None
+    period: str = None,
+    token: str = None
 ) -> dict:
     """
     Delete budgets matching the target filters.
@@ -629,11 +650,12 @@ async def delete_budgets(
     :param category: Category name to filter target budgets.
     :param subcategory: Subcategory name to filter target budgets.
     :param period: Recurrence period to filter target budgets.
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A status dictionary indicating status and list of deleted IDs.
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         return await budget.delete_budgets_impl(
             conn, user_id,
             budget_ids=budget_ids,
@@ -651,7 +673,8 @@ async def compare_budget_vs_expenses(
     budget_type: str = None,
     category: str = None,
     subcategory: str = None,
-    period: str = None
+    period: str = None,
+    token: str = None
 ) -> dict:
     """
     Get the real-time spending status compared against active budgets on a given reference date.
@@ -662,11 +685,12 @@ async def compare_budget_vs_expenses(
     :param category: Optional filter by category name.
     :param subcategory: Optional filter by subcategory name.
     :param period: Optional filter by duration: 'weekly', 'monthly', 'quarterly', or 'yearly'.
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A status summary comparing active budgets with actual expenses.
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         return await budget.compare_budget_vs_expenses_impl(
             conn, user_id,
             reference_date=reference_date,
@@ -683,7 +707,8 @@ async def expense_summary(
     category: str = None,
     subcategory: str = None,
     start_date: str = None,
-    end_date: str = None
+    end_date: str = None,
+    token: str = None
 ) -> dict:
     """
     Generate an analytical expense summary with a rich Matplotlib chart.
@@ -695,11 +720,12 @@ async def expense_summary(
     :param subcategory: Optional filter by subcategory.
     :param start_date: Optional filter to include expenses on or after this ISO date (YYYY-MM-DD).
     :param end_date: Optional filter to include expenses on or before this ISO date (YYYY-MM-DD).
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A status dictionary containing the path to the generated chart image, markdown links, and tabular data.
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         return await analytics.expense_summary_impl(
             conn, user_id,
             period=period,
@@ -711,16 +737,17 @@ async def expense_summary(
         )
 
 @mcp.tool
-async def financial_health_score(reference_month: str = None) -> dict:
+async def financial_health_score(reference_month: str = None, token: str = None) -> dict:
     """
     Calculate a deterministic financial health score and feedback metrics.
     
     :param reference_month: Optional target month to evaluate in YYYY-MM format. Defaults to current month.
+    :param token: Your private secure UUID token (required if connecting via cloud).
     :return: A status dictionary containing the overall health score, grade, breakdown of the 6 KPIs, and detailed reasons.
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, token)
         return await health.financial_health_score_impl(
             conn, user_id,
             reference_month=reference_month
@@ -746,12 +773,8 @@ async def register_user() -> dict:
         
         return {
             "status": "ok",
-            "message": "Registration successful! To secure your private database workspace, please copy this URL and paste it into your custom connector's 'Remote MCP server URL' field:",
-            "token": generated_token,
-            "url_configuration": f"https://Finance-Intelligence-MCP.fastmcp.app/mcp?token={generated_token}",
-            "headers": {
-                "x-token": generated_token
-            }
+            "message": "Registration successful! To secure your private database workspace, please tell me (Claude) your new token, and I will use it for all subsequent operations in this chat:",
+            "token": generated_token
         }
 
 @mcp.resource("expense://categories", mime_type="application/json")

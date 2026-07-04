@@ -46,7 +46,6 @@ async def run_tests():
             print("Registration result:", res)
             assert res["status"] == "ok"
             assert "token" in res
-            assert "url_configuration" in res
             
             registered_token = res["token"]
             
@@ -77,6 +76,15 @@ async def run_tests():
             resolved_id_query = await main.get_authenticated_user_id(conn)
             print(f"Cloud query parameter auth succeeded! Resolved ID: {resolved_id_query}")
             assert resolved_id_query == db_user["id"]
+            
+            # --- TEST 6: Simulate cloud connection with tool parameter argument ---
+            print("\n--- Test 6: Simulate cloud connection with token parameter passed as tool argument ---")
+            main.get_http_headers = lambda: {}  # Cloud env (headers exist but no token)
+            main.get_http_request = lambda: None
+            
+            resolved_id_param = await main.get_authenticated_user_id(conn, registered_token)
+            print(f"Cloud parameter auth succeeded! Resolved ID: {resolved_id_param}")
+            assert resolved_id_param == db_user["id"]
             
             # Clean up the generated test user
             print("\nCleaning up registered test user...")
