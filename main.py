@@ -4,10 +4,15 @@ import os
 import getpass
 from dotenv import load_dotenv
 from datetime import date as pydate
-from src import budget
-from src import analytics
-from src import health
-
+from src import budget, analytics, health
+from src.auth import (
+    hash_password,
+    verify_password,
+    generate_token,
+    create_user,
+    authenticate_user,
+    get_user_from_token,
+)
 # Load configuration from .env file
 load_dotenv()
 
@@ -30,8 +35,29 @@ async def get_pool():
                 CREATE TABLE IF NOT EXISTS users (
                     id SERIAL PRIMARY KEY,
                     username VARCHAR(100) UNIQUE NOT NULL,
-                    token VARCHAR(255) NOT NULL
+                    email VARCHAR(255) UNIQUE,
+                    password_hash TEXT,
+                    token VARCHAR(255) UNIQUE NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
                 );
+            """)
+            await conn.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS email VARCHAR(255) UNIQUE;
+            """)
+
+            await conn.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS password_hash TEXT;
+            """)
+
+            await conn.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP;
+            """)
+            await conn.execute("""
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_users_token_unique
+                ON users(token);
             """)
             # Create expenses table referencing users
             await conn.execute("""
@@ -70,27 +96,74 @@ async def get_pool():
             """)
     return pool
 
-async def get_authenticated_user_id(conn) -> int:
+async def get_authenticated_user_id(
+    conn,
+    auth_token: str = None
+) -> int:
     """
-    Retrieves and authenticates the user.
-    For local development, falls back to DEFAULT_USER / getpass.getuser() with zero setup.
+    Resolve authenticated user.
+
+    Hosted mode:
+        Uses the supplied authentication token.
+
+    Local development:
+        Falls back to DEFAULT_USER / DEFAULT_TOKEN.
     """
-    username = os.environ.get("DEFAULT_USER") or getpass.getuser() or "anonymous"
-    token = os.environ.get("DEFAULT_TOKEN") or "local_dev_token"
-            
+
+    # Hosted authentication
+    if auth_token:
+        user = await get_user_from_token(
+            conn,
+            auth_token
+        )
+
+        if user is None:
+            raise ValueError("Invalid authentication token.")
+
+        return user["id"]
+
+    # Local development fallback
+    username = (
+        os.environ.get("DEFAULT_USER")
+        or getpass.getuser()
+        or "anonymous"
+    )
+
+    token = (
+        os.environ.get("DEFAULT_TOKEN")
+        or "local_dev_token"
+    )
+
     username = username.strip()
     token = token.strip()
-    
-    # Query database and match/register
-    row = await conn.fetchrow("SELECT id FROM users WHERE token = $1", token)
+
+    row = await conn.fetchrow(
+        """
+        SELECT id
+        FROM users
+        WHERE token = $1
+        """,
+        token
+    )
+
     if row is None:
+
         user_id = await conn.fetchval(
-            "INSERT INTO users (username, token) VALUES ($1, $2) RETURNING id",
-            username, token
+            """
+            INSERT INTO users (
+                username,
+                token
+            )
+            VALUES ($1, $2)
+            RETURNING id
+            """,
+            username,
+            token
         )
+
         return user_id
-    else:
-        return row["id"]
+
+    return row["id"]
 
 @mcp.tool
 async def add_expense(date: str, amount: float, category: str, subcategory: str = "", note: str = ""):
