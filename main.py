@@ -166,12 +166,12 @@ async def get_authenticated_user_id(
     return row["id"]
 
 @mcp.tool
-async def add_expense(date: str, amount: float, category: str, subcategory: str = "", note: str = ""):
+async def add_expense(date: str, amount: float, category: str, subcategory: str = "", note: str = "", auth_token: str = None):
     """Add an expense to the database.
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         parsed_date = pydate.fromisoformat(date)
         expense_id = await conn.fetchval(
             """
@@ -184,7 +184,7 @@ async def add_expense(date: str, amount: float, category: str, subcategory: str 
         return {"status": "ok", "id": expense_id}
 
 @mcp.tool
-async def list_expenses(start_date: str, end_date: str):
+async def list_expenses(start_date: str, end_date: str, auth_token: str = None):
     """
     List all expenses from the database within a date range (inclusive).
     If the list contains more than 50 items, it truncates the inline results to the first 50
@@ -192,7 +192,7 @@ async def list_expenses(start_date: str, end_date: str):
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         parsed_start = pydate.fromisoformat(start_date)
         parsed_end = pydate.fromisoformat(end_date)
         rows = await conn.fetch(
@@ -243,7 +243,8 @@ async def expense_breakdown(
     group_by: str = "category",
     breakdown: str = None,
     category: str = None,
-    subcategory: str = None
+    subcategory: str = None,
+    auth_token: str = None
 ) -> list:
     """
     Summarize and breakdown expenses by columns or time units within a date range.
@@ -264,7 +265,7 @@ async def expense_breakdown(
 
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         parsed_start = pydate.fromisoformat(start_date)
         parsed_end = pydate.fromisoformat(end_date)
         
@@ -322,7 +323,8 @@ async def delete_expenses(
     start_date: str = None,
     end_date: str = None,
     category: str = None,
-    subcategory: str = None
+    subcategory: str = None,
+    auth_token: str = None
 ) -> dict:
     """
     Delete expenses matching the provided filters.
@@ -347,7 +349,7 @@ async def delete_expenses(
 
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         
         # Build query dynamically
         query = "DELETE FROM expenses WHERE user_id = $1"
@@ -408,7 +410,8 @@ async def update_expenses(
     amount: float = None,
     category: str = None,
     subcategory: str = None,
-    note: str = None
+    note: str = None,
+    auth_token: str = None
 ) -> dict:
     """
     Update expenses matching the target filters with the specified values.
@@ -447,7 +450,7 @@ async def update_expenses(
 
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         
         set_clauses = []
         params = []
@@ -536,7 +539,8 @@ async def create_budget(
     end_date: str = None,
     category: str = None,
     subcategory: str = None,
-    budgets: list[dict] = None
+    budgets: list[dict] = None,
+    auth_token: str = None
 ) -> dict:
     """
     Create one or more budget tracking limits.
@@ -554,7 +558,7 @@ async def create_budget(
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         return await budget.create_budget_impl(
             conn, user_id,
             budget_type=budget_type,
@@ -572,7 +576,8 @@ async def list_budgets(
     budget_type: str = None,
     category: str = None,
     subcategory: str = None,
-    period: str = None
+    period: str = None,
+    auth_token: str = None
 ) -> list:
     """
     List all budgets matching the optional filters.
@@ -586,7 +591,7 @@ async def list_budgets(
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         return await budget.list_budgets_impl(
             conn, user_id,
             budget_type=budget_type,
@@ -608,7 +613,8 @@ async def update_budgets(
     start_date: str = None,
     end_date: str = None,
     category: str = None,
-    subcategory: str = None
+    subcategory: str = None,
+    auth_token: str = None
 ) -> dict:
     """
     Update budgets matching the target filters with the specified values.
@@ -632,7 +638,7 @@ async def update_budgets(
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         return await budget.update_budgets_impl(
             conn, user_id,
             budget_ids=budget_ids,
@@ -657,7 +663,8 @@ async def delete_budgets(
     budget_type: str = None,
     category: str = None,
     subcategory: str = None,
-    period: str = None
+    period: str = None,
+    auth_token: str = None
 ) -> dict:
     """
     Delete budgets matching the target filters.
@@ -675,7 +682,7 @@ async def delete_budgets(
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         return await budget.delete_budgets_impl(
             conn, user_id,
             budget_ids=budget_ids,
@@ -693,7 +700,8 @@ async def compare_budget_vs_expenses(
     budget_type: str = None,
     category: str = None,
     subcategory: str = None,
-    period: str = None
+    period: str = None,
+    auth_token: str = None
 ) -> dict:
     """
     Get the real-time spending status compared against active budgets on a given reference date.
@@ -708,7 +716,7 @@ async def compare_budget_vs_expenses(
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         return await budget.compare_budget_vs_expenses_impl(
             conn, user_id,
             reference_date=reference_date,
@@ -725,7 +733,8 @@ async def expense_summary(
     category: str = None,
     subcategory: str = None,
     start_date: str = None,
-    end_date: str = None
+    end_date: str = None,
+    auth_token: str = None
 ) -> dict:
     """
     Generate an analytical expense summary with a rich Matplotlib chart.
@@ -741,7 +750,7 @@ async def expense_summary(
     """
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         return await analytics.expense_summary_impl(
             conn, user_id,
             period=period,
@@ -752,17 +761,27 @@ async def expense_summary(
             end_date=end_date
         )
 
-@mcp.tool
-async def financial_health_score(reference_month: str = None) -> dict:
+@mcp.tool()
+async def financial_health_score(
+    auth_token: str,
+    reference_month: str | None = None
+):
     """
-    Calculate a deterministic financial health score and feedback metrics.
-    
-    :param reference_month: Optional target month to evaluate in YYYY-MM format. Defaults to current month.
-    :return: A status dictionary containing the overall health score, grade, breakdown of the 6 KPIs, and detailed reasons.
+    Calculate the user's financial health score.
+
+    Args:
+        auth_token: Authentication token of the current user.
+        reference_month: Month to analyze in YYYY-MM format.
+            If omitted, use the current month.
     """
+
+    if reference_month is None:
+        reference_month = date.today().strftime("%Y-%m")
+
+    # existing code
     db_pool = await get_pool()
     async with db_pool.acquire() as conn:
-        user_id = await get_authenticated_user_id(conn)
+        user_id = await get_authenticated_user_id(conn, auth_token)
         return await health.financial_health_score_impl(
             conn, user_id,
             reference_month=reference_month
@@ -777,5 +796,14 @@ def resources():
     with open(CATEGORIES_PATH, 'r', encoding="utf-8") as f:
         return f.read()
 
-if __name__ == '__main__':
-    mcp.run()
+if __name__ == "__main__":
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+
+    if transport == "http":
+        mcp.run(
+            transport="streamable-http",
+            host=os.environ.get("MCP_HOST", "127.0.0.1"),
+            port=int(os.environ.get("MCP_PORT", "8000"))
+        )
+    else:
+        mcp.run()

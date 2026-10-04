@@ -14,3 +14,23 @@ wheels/
 .env.*
 !.env.example
 *.db
+
+node_modules/
+.venv/
+__pycache__/
+.env
+.env.*
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+.env.*
+
+# Node
+node_modules/
+frontend/node_modules/
+npm-debug.log*

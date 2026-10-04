@@ -5,7 +5,8 @@ from dotenv import load_dotenv
 
 from main import get_pool
 from src.auth import create_user, authenticate_user, get_user_from_token
-
+from fastapi.middleware.cors import CORSMiddleware
+from src.ai import chat_with_finance
 
 load_dotenv()
 
@@ -13,6 +14,16 @@ app = FastAPI(
     title="Finance Intelligence API",
     description="Authentication and application API for Finance Intelligence MCP",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 security = HTTPBearer()
@@ -32,7 +43,8 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-
+class ChatRequest(BaseModel):
+    message: str
 # ============================================================
 # AUTHENTICATION DEPENDENCY
 # ============================================================
@@ -61,7 +73,31 @@ async def get_current_user(
             detail="Invalid or expired authentication token."
         )
 
-    return user
+    return {
+        "user": user,
+        "token": token
+    }
+
+async def get_current_auth(
+    credentials: HTTPAuthorizationCredentials = Depends(security)
+):
+    token = credentials.credentials
+
+    db_pool = await get_pool()
+
+    async with db_pool.acquire() as conn:
+        user = await get_user_from_token(
+            conn,
+            token
+        )
+
+    if user is None:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired authentication token."
+        )
+
+    return user, token
 
 
 # ============================================================
@@ -188,4 +224,21 @@ async def me(
     return {
         "status": "ok",
         "user": user
+    }
+
+@app.post("/chat")
+async def chat(
+    request: ChatRequest,
+    auth=Depends(get_current_auth)
+):
+    user, auth_token = auth
+
+    result = await chat_with_finance(
+        user_message=request.message,
+        auth_token=auth_token
+    )
+
+    return {
+        "status": "ok",
+        "response": result
     }
