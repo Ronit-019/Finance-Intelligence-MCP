@@ -27,7 +27,7 @@ classifiers = [
 
 dependencies = [
     "asyncpg>=0.31.0",
-    ""fastmcp>=3.4.2,<4",",
+    "fastmcp>=3.4.2,<4",
     "sqlalchemy[asyncio]>=2.0.51",
     "python-dotenv>=1.0.1",
     "matplotlib>=3.8.0",
